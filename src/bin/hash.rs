@@ -97,7 +97,7 @@ fn main() -> Result<()> {
 
     // Compare mode if requested
     if let Some(ref input2) = cli.compare {
-        return compare_inputs(&cli.input, input2, &cli)?;
+        return compare_inputs(&cli.input, input2, &cli);
     }
 
     // Process input
@@ -375,11 +375,17 @@ fn compare_all_algorithms(input1: &str, input2: &str, cli: &Cli) -> Result<()> {
 
         if !cli.quiet {
             let status = if matches { "✓" } else { "✗" };
+            let diff_info = if matches { 
+                String::new() 
+            } else { 
+                format!("{} ≠ {}", &hash1[..16], &hash2[..16])
+            };
+            
             println!("{} {:<15} {} | {}", 
                 status,
                 format!("{}:", algorithm.name().to_uppercase()),
                 if matches { "MATCH" } else { "DIFFERENT" },
-                if matches { "" } else { &format!("{} ≠ {}", &hash1[..16], &hash2[..16]) }
+                diff_info
             );
         }
     }
