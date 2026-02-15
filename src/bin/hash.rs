@@ -55,6 +55,10 @@ struct Cli {
     /// Verify hash against expected value
     #[arg(short = 'c', long, value_name = "EXPECTED")]
     verify: Option<String>,
+
+    /// Compare two files or strings by hash
+    #[arg(short = 'C', long, value_name = "INPUT2")]
+    compare: Option<String>,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -89,6 +93,11 @@ fn main() -> Result<()> {
     if cli.list_algorithms {
         list_algorithms();
         return Ok(());
+    }
+
+    // Compare mode if requested
+    if let Some(ref input2) = cli.compare {
+        return compare_inputs(&cli.input, input2, &cli)?;
     }
 
     // Process input
@@ -299,6 +308,98 @@ fn export_all_results(results: &[HashResult], base_path: &Path, format: &ExportF
     }
 
     Ok(())
+}
+
+fn compare_inputs(input1: &str, input2: &str, cli: &Cli) -> Result<()> {
+    if cli.all_algorithms {
+        compare_all_algorithms(input1, input2, cli)
+    } else {
+        compare_single_algorithm(input1, input2, cli)
+    }
+}
+
+fn compare_single_algorithm(input1: &str, input2: &str, cli: &Cli) -> Result<()> {
+    let algorithm = Algorithm::from_str(&cli.algorithm)
+        .with_context(|| format!("Invalid algorithm: {}", cli.algorithm))?;
+
+    let (hash1, type1, path1) = compute_hash(input1, algorithm, cli.string)?;
+    let (hash2, type2, path2) = compute_hash(input2, algorithm, cli.string)?;
+
+    let matches = hash1 == hash2;
+
+    if cli.quiet {
+        std::process::exit(if matches { 0 } else { 1 });
+    }
+
+    // Display comparison results
+    println!("Comparing using {}", algorithm.name().to_uppercase());
+    println!();
+    println!("Input 1: {} ({})", path1.as_deref().unwrap_or(input1), type1);
+    println!("Hash 1:  {}", hash1);
+    println!();
+    println!("Input 2: {} ({})", path2.as_deref().unwrap_or(input2), type2);
+    println!("Hash 2:  {}", hash2);
+    println!();
+
+    if matches {
+        println!("✓ MATCH - Inputs are identical");
+        Ok(())
+    } else {
+        println!("✗ NO MATCH - Inputs are different");
+        std::process::exit(1);
+    }
+}
+
+fn compare_all_algorithms(input1: &str, input2: &str, cli: &Cli) -> Result<()> {
+    let mut all_match = true;
+    let mut match_count = 0;
+    let mut mismatch_count = 0;
+
+    if !cli.quiet {
+        println!("Comparing with all algorithms...");
+        println!();
+    }
+
+    for algorithm in Algorithm::all() {
+        let (hash1, _, _) = compute_hash(input1, algorithm, cli.string)?;
+        let (hash2, _, _) = compute_hash(input2, algorithm, cli.string)?;
+
+        let matches = hash1 == hash2;
+        
+        if matches {
+            match_count += 1;
+        } else {
+            mismatch_count += 1;
+            all_match = false;
+        }
+
+        if !cli.quiet {
+            let status = if matches { "✓" } else { "✗" };
+            println!("{} {:<15} {} | {}", 
+                status,
+                format!("{}:", algorithm.name().to_uppercase()),
+                if matches { "MATCH" } else { "DIFFERENT" },
+                if matches { "" } else { &format!("{} ≠ {}", &hash1[..16], &hash2[..16]) }
+            );
+        }
+    }
+
+    if !cli.quiet {
+        println!();
+        println!("Results: {} matches, {} mismatches", match_count, mismatch_count);
+        
+        if all_match {
+            println!("✓ ALL ALGORITHMS MATCH - Inputs are identical");
+        } else {
+            println!("✗ MISMATCHES DETECTED - Inputs are different");
+        }
+    }
+
+    if all_match {
+        Ok(())
+    } else {
+        std::process::exit(1);
+    }
 }
 
 #[cfg(test)]

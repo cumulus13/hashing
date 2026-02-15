@@ -89,6 +89,19 @@ hash -A file.txt
 hash -A -q file.txt
 ```
 
+### Compare Two Files or Strings
+
+```bash
+# Compare two files by hash
+hash file1.txt -C file2.txt
+
+# Compare with all algorithms
+hash original.zip -C backup.zip -A
+
+# Quick comparison (quiet mode, exit code only)
+hash file1.pdf -C file2.pdf -q && echo "Identical"
+```
+
 ### Export Results
 
 ```bash

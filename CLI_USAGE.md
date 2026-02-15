@@ -75,6 +75,54 @@ hash file.zip -c abc123... -q
 echo $?  # 0 = match, 1 = mismatch
 ```
 
+### Compare Two Files or Strings
+
+```bash
+# Compare two files by hash (default: SHA-256)
+hash file1.txt -C file2.txt
+
+# Output:
+# Comparing using SHA256
+#
+# Input 1: file1.txt (file)
+# Hash 1:  2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+#
+# Input 2: file2.txt (file)
+# Hash 2:  2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+#
+# ✓ MATCH - Inputs are identical
+
+# Compare using specific algorithm
+hash file1.zip -C file2.zip -a blake3
+
+# Compare with ALL algorithms (comprehensive verification)
+hash file1.txt -C file2.txt -A
+
+# Output:
+# Comparing with all algorithms...
+#
+# ✓ MD5:            MATCH
+# ✓ SHA1:           MATCH
+# ✓ SHA256:         MATCH
+# ✓ SHA512:         MATCH
+# ✓ BLAKE3:         MATCH
+# ... (all 19 algorithms)
+#
+# Results: 19 matches, 0 mismatches
+# ✓ ALL ALGORITHMS MATCH - Inputs are identical
+
+# Quiet mode for scripting
+hash backup.tar -C backup-copy.tar -C -q
+echo $?  # 0 = identical, 1 = different
+
+# Compare strings
+hash "hello" -C "world" -s
+# ✗ NO MATCH - Inputs are different
+
+# Compare file vs string
+hash config.json -C "some text" -s
+```
+
 ### List Available Algorithms
 
 ```bash
@@ -99,6 +147,7 @@ hash -l
 | `<INPUT>` | - | File path or string to hash | `hash file.txt` |
 | `--algorithm` | `-a` | Algorithm to use | `-a blake3` |
 | `--all-algorithms` | `-A` | Compute ALL algorithms | `-A` |
+| `--compare` | `-C` | Compare two inputs by hash | `-C file2.txt` |
 | `--string` | `-s` | Force treat as string | `-s myfile.txt` |
 | `--export` | `-e` | Export to file | `-e output.txt` |
 | `--format` | `-f` | Export format (text/json/checksum) | `-f json` |
@@ -166,9 +215,44 @@ hash downloaded.zip -c "$EXPECTED" || {
 }
 
 # Compare two files
-HASH1=$(hash -q file1.txt)
-HASH2=$(hash -q file2.txt)
-[ "$HASH1" = "$HASH2" ] && echo "Files are identical"
+hash file1.txt -C file2.txt -q || echo "Files are different"
+
+# Quick identity check
+if hash original.zip -C backup.zip -q; then
+    echo "✓ Backup verified - files are identical"
+else
+    echo "✗ Backup differs from original!"
+    exit 1
+fi
+```
+
+### File Comparison Workflows
+
+```bash
+# Verify backup integrity
+hash /data/important.db -C /backup/important.db -A
+
+# Compare downloaded file with original
+hash original.iso -C downloaded.iso -a blake3
+
+# Batch comparison
+for file in originals/*; do
+    backup="backups/$(basename $file)"
+    if hash "$file" -C "$backup" -q; then
+        echo "✓ $file matches backup"
+    else
+        echo "✗ $file differs from backup"
+    fi
+done
+
+# Deduplication - find identical files
+for file1 in dir1/*; do
+    for file2 in dir2/*; do
+        if hash "$file1" -C "$file2" -q; then
+            echo "Duplicate found: $file1 == $file2"
+        fi
+    done
+done
 ```
 
 ### Security Best Practices
@@ -309,8 +393,11 @@ hash downloaded.dmg -c $(cat official.sha256) || exit 1
 
 ### Backup: Verify File Integrity
 ```bash
+# Create checksums
 hash -A backup.tar.gz -e backup.hashes
-# Later: verify each file hasn't changed
+
+# Later: compare backup with original
+hash original.tar.gz -C backup.tar.gz -A
 ```
 
 ### DevOps: CI/CD Pipeline
@@ -318,6 +405,25 @@ hash -A backup.tar.gz -e backup.hashes
 #!/bin/bash
 HASH=$(hash -q -a blake3 release.zip)
 echo "RELEASE_HASH=$HASH" >> $GITHUB_ENV
+```
+
+### System Admin: File Monitoring
+```bash
+#!/bin/bash
+# Check if critical system file has changed
+if ! hash /etc/passwd -C /backup/passwd.bak -q; then
+    echo "ALERT: /etc/passwd has been modified!"
+    mail -s "Security Alert" admin@example.com
+fi
+```
+
+### Quality Assurance: Media File Verification
+```bash
+# Verify video rendering output matches
+hash original.mp4 -C rendered.mp4 -a blake3 || {
+    echo "Render output differs from source!"
+    exit 1
+}
 ```
 
 ---

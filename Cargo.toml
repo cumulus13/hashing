@@ -30,6 +30,7 @@ readme = "README.md"
 rust-version = "1.70"
 
 [dependencies]
+# Low-level cryptographic primitives (level 0/1 dependencies)
 sha2 = "0.10"
 sha3 = "0.10"
 md-5 = "0.10"
@@ -72,3 +73,7 @@ strip = true
 
 [profile.bench]
 inherits = "release"
+
+[[bench]]
+name = "hash_bench"
+harness = false
